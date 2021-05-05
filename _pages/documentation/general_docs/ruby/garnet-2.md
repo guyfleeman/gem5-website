@@ -193,6 +193,56 @@ router latency in src/mem/ruby/network/BasicRouter.py. This is
 implemented by making a buffered flit wait in the router for (latency-1)
 cycles before becoming eligible for SA.
 
+### Heterogeneous Links
+
+Garnet supports heterogeneous network links, meaning a topology can have
+different link widths for different links, and the source and destination
+can have differing clock domains. This requires the use of seralizer
+and deseralizer modules, which narrow and widen the transmission
+respectively. Garnet infers their presence, but they can be 
+programmatically enabled using the following snippet.
+
+```
+# force enable
+en_serdes = True
+
+# any number of *bytes* that is not the default width
+# which is specified in *bits* by the --link-width-bits
+# flag
+link_width_bytes = 8
+
+# creat the link (any of you optional flags go at the ...)
+my_serdes_link = IntLink(link_id=link_count,
+                         src_node=routers[src_ind],
+                         dst_node=routers[dst_ind],
+                         ...
+                         width=link_width,
+                         src_serdes=en_serdes,
+                         dst_serdes=en_serdes))
+
+# add the link when you want
+```
+
+A few important architectural notes surrounding links. They currently
+have some odd mannerisms surrounding SerDes/CDC behavior. Notably,
+they schedule all flits using a fixed latency, meaning the latency
+is for the entire serialization process including scheulding all 
+seralized flits. The latency is not calculated per flit. This means
+if you play around with wider vs. narrower conversions, the penatly is
+the same though you may expect it to be higher when serializing more
+times for a narrow link. All of these serialized flits are future
+scheduled immediately, not held in the module and credits generally
+bypass this module. More sophisticated schemes will require pipeline
+modifications to put this in the loop.
+
+If you mismatch link widths the Router will panic, informing you
+of the mistake.
+
+The relevant files for this implementation are
+ - src/mem/ruby/network/garnet/NetworkBridge.hh
+ - src/mem/ruby/network/garnet/NetworkBridge.cc
+ - src/mem/ruby/network/garnet/flit.cc
+
 ## Buffer Management
 
 Each router input port has number_of_virtual_networks Vnets, each
